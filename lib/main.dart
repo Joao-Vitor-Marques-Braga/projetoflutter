@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+// Estado simples de autenticação para proteger rotas privadas
+final ValueNotifier<bool> authState = ValueNotifier<bool>(false);
+
 void main() {
   runApp(const MyApp());
 }
@@ -55,7 +58,45 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const FormularioCadastro(),
+      // 3 rotas nomeadas (1 pública e 2 privadas):
+      // '/cadastro' (pública), '/area' (privada), '/detalhes' (privada com Map argumentos)
+      initialRoute: '/cadastro',
+      onGenerateRoute: (RouteSettings settings) {
+        Widget page;
+
+        if (settings.name == '/cadastro' || settings.name == '/') {
+          page = const FormularioCadastro();
+        } else if (settings.name == '/area') {
+          if (!authState.value) {
+            page = const AcessoNegadoScreen();
+          } else {
+            page = const AreaPrivadaScreen();
+          }
+        } else if (settings.name == '/detalhes') {
+          if (!authState.value) {
+            page = const AcessoNegadoScreen();
+          } else {
+            final Object? args = settings.arguments;
+            final Map<String, dynamic>? dados = args is Map<String, dynamic>
+                ? args
+                : null;
+            page = DetalhesPrivadosScreen(dados: dados);
+          }
+        } else {
+          // Fallback: rota não encontrada
+          page = Scaffold(
+            appBar: AppBar(title: const Text('Rota não encontrada')),
+            body: Center(
+              child: Text(
+                'A rota "${settings.name}" não existe.',
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+          );
+        }
+
+        return MaterialPageRoute(builder: (_) => page, settings: settings);
+      },
     );
   }
 }
@@ -555,6 +596,138 @@ class _FormularioCadastroState extends State<FormularioCadastro> {
                     ],
                   ),
                 ),
+
+                const SizedBox(height: 16),
+
+                // Acesso e Navegação (rotas nomeadas + login/logout)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.shade100,
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                    border: Border.all(color: Colors.blue.shade100),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.lock_outline_rounded,
+                            color: Colors.blue.shade600,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Acesso e Navegação (Rotas Nomeadas)',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade800,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ValueListenableBuilder<bool>(
+                        valueListenable: authState,
+                        builder: (context, isLogged, _) {
+                          return Row(
+                            children: [
+                              Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: isLogged
+                                      ? Colors.green.shade500
+                                      : Colors.red.shade400,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                isLogged ? 'Autenticado' : 'Não autenticado',
+                                style: TextStyle(
+                                  color: isLogged
+                                      ? Colors.green.shade700
+                                      : Colors.red.shade700,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const Spacer(),
+                              TextButton.icon(
+                                onPressed: () {
+                                  authState.value = !authState.value;
+                                },
+                                icon: Icon(
+                                  isLogged
+                                      ? Icons.logout_rounded
+                                      : Icons.login_rounded,
+                                ),
+                                label: Text(isLogged ? 'Logout' : 'Login'),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pushNamed('/area');
+                              },
+                              icon: const Icon(Icons.lock_person_rounded),
+                              label: const Text('Ir para Área Privada'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                final Map<String, dynamic> dados = {
+                                  'nomeCompleto':
+                                      _pessoas
+                                          .first
+                                          .nomeController
+                                          .text
+                                          .isNotEmpty
+                                      ? _pessoas.first.nomeController.text
+                                      : 'Maria Silva',
+                                  'dataNascimento':
+                                      _pessoas.first.dataNascimento != null
+                                      ? '${_pessoas.first.dataNascimento!.day.toString().padLeft(2, '0')}/'
+                                            '${_pessoas.first.dataNascimento!.month.toString().padLeft(2, '0')}/'
+                                            '${_pessoas.first.dataNascimento!.year}'
+                                      : '01/01/1990',
+                                  'telefone': '(11) 99999-0000',
+                                };
+                                Navigator.of(
+                                  context,
+                                ).pushNamed('/detalhes', arguments: dados);
+                              },
+                              icon: const Icon(Icons.list_alt_rounded),
+                              label: const Text('Detalhes Privados'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Observação: \'Área\' e \'Detalhes\' são rotas privadas. '
+                        'Faça login acima para acessá-las.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -597,5 +770,136 @@ class _PessoaFormData {
 
   void dispose() {
     nomeController.dispose();
+  }
+}
+
+// --------- TELAS PARA AS ROTAS NOMEADAS ---------
+
+class AcessoNegadoScreen extends StatelessWidget {
+  const AcessoNegadoScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Acesso Negado')),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.lock_rounded, size: 64, color: Colors.red.shade400),
+            const SizedBox(height: 12),
+            const Text(
+              'Você precisa estar autenticado para acessar esta rota.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              icon: const Icon(Icons.arrow_back_rounded),
+              label: const Text('Voltar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AreaPrivadaScreen extends StatelessWidget {
+  const AreaPrivadaScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Área Privada')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.verified_user_rounded,
+                size: 72,
+                color: Colors.green,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Bem-vindo! Você está autenticado e acessou a área privada.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class DetalhesPrivadosScreen extends StatelessWidget {
+  final Map<String, dynamic>? dados;
+
+  const DetalhesPrivadosScreen({super.key, this.dados});
+
+  @override
+  Widget build(BuildContext context) {
+    final Map<String, dynamic> info =
+        dados ??
+        const {
+          'nomeCompleto': 'Usuário Desconhecido',
+          'dataNascimento': '—',
+          'telefone': '—',
+        };
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Detalhes Privados')),
+      body: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.privacy_tip_rounded, color: Colors.blue.shade600),
+                const SizedBox(width: 8),
+                Text(
+                  'Dados do Usuário',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue.shade800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _linha('Nome completo', '${info['nomeCompleto']}'),
+            _linha('Data de nascimento', '${info['dataNascimento']}'),
+            _linha('Telefone', '${info['telefone']}'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _linha(String titulo, String valor) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 160,
+            child: Text(
+              titulo,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          Expanded(child: Text(valor)),
+        ],
+      ),
+    );
   }
 }
